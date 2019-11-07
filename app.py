@@ -6,8 +6,11 @@ import dash_table
 import plotly.graph_objects as go
 from datetime import datetime
 from sqlalchemy import create_engine
+import config
 
-engine = create_engine('postgresql://postgres:Zpch9AQR6pPecJB7SYnctest@ds4acolombia.cl3uubspnmbm.us-east-2.rds.amazonaws.com/trades')
+pwd= config.db_pwd
+host=config.db_host
+engine = create_engine('postgresql://postgres:'+pwd+'@'+host+'/strategy')
 df = pd.read_sql("SELECT * from trades", engine.connect(), parse_dates=('OCCURRED_ON_DATE',))
 df['YearMonth'] = df['Entry time'].dt.to_period('M')
 
@@ -269,7 +272,7 @@ def update_monthly(exchange, leverage, start_date, end_date):
 
 def update_table(exchange, leverage, start_date, end_date):
     dff = filter_df(df, exchange, leverage, start_date, end_date)
-    dff['YearMonth'] = [a.to_timestamp() for a in dff['YearMonth']]
+    dff.loc[:,'YearMonth'] = [a.to_timestamp() for a in dff['YearMonth']]
     return dff.to_dict('records')
 
 @app.callback(dash.dependencies.Output('pnl-types','figure'),
@@ -280,18 +283,18 @@ def update_table(exchange, leverage, start_date, end_date):
 
 def bar_chart(ex, le, start, end):
     dff = filter_df(df, ex,le,start,end)
-    dff['YearMonth'] = [a.to_timestamp() for a in dff['YearMonth']]
+    dff.loc[:,'YearMonth'] = [a.to_timestamp() for a in dff['YearMonth']]
     short = dff[dff['Trade type']=='Short']
     long = dff[dff['Trade type']=='Long']
     dff.groupby(dff['Entry time'].dt.date).sum()
-    return {'data': [go.Bar(x = short.groupby(short['Entry time'].dt.date).sum().index,
-                            y = short.groupby(short['Entry time'].dt.date).sum()['Pnl (incl fees)'],
+    return {'data': [go.Bar(x = short['Entry time'],
+                            y = short['Pnl (incl fees)'],
                             name = 'Short',
-                            marker=go.bar.Marker(color='rgb(55, 83, 109)')),
-                    go.Bar(x = long.groupby(long['Entry time'].dt.date).sum().index,
-                           y = long.groupby(long['Entry time'].dt.date).sum()['Pnl (incl fees)'],
+                            marker=go.bar.Marker(color='rgb(250, 128, 114)')),
+                    go.Bar(x = long['Entry time'],
+                           y = long['Pnl (incl fees)'],
                            name = 'Long',
-                           marker=go.bar.Marker(color = 'rgb(128,0,0)'))                    
+                           marker=go.bar.Marker(color = 'rgb(144, 185, 212)'))                    
                      ],
             'layout' : {'title' : 'PnL vs Trade type',
                         'width':'700',
@@ -306,7 +309,7 @@ def bar_chart(ex, le, start, end):
     
 def line_btc(ex, le, start, end):
     dff = filter_df(df, ex,le,start,end)
-    dff['YearMonth'] = [a.to_timestamp() for a in dff['YearMonth']]
+    dff.loc[:,'YearMonth'] = [a.to_timestamp() for a in dff['YearMonth']]
     agr = dff.groupby(dff['Entry time'].dt.date).mean()
     return{'data' : [go.Line(x = agr.index,
                              y = agr['BTC Price'])],
@@ -323,7 +326,7 @@ def line_btc(ex, le, start, end):
     
 def balance(ex, le, start, end):
     dff = filter_df(df, ex,le,start,end)
-    dff['YearMonth'] = [a.to_timestamp() for a in dff['YearMonth']]
+    dff.loc[:,'YearMonth'] = [a.to_timestamp() for a in dff['YearMonth']]
     agr = dff.groupby(dff['Entry time'].dt.date).mean()
     return{'data' : [go.Line(x = agr.index,
                              y = agr['Exit balance'] - agr['Profit'])],
@@ -333,5 +336,4 @@ def balance(ex, le, start, end):
             }
     
 if __name__ == "__main__":
-    app.run_server(debug=True)
-
+    app.run_server(debug=True,host='0.0.0.0')
